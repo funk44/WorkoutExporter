@@ -354,29 +354,235 @@ Planned uploads must follow this structure exactly:
 
 ## CLI overview
 
-### Export last week
+The CLI provides two primary modes:
+
+- **Weekly Strava export** (actual training history)  
+- **Intervals.icu planned workout upload** (future training plans)  
+
+It also includes helpers for validation, archiving, ad-hoc uploads, and flexible date ranges.
+
+---
+
+### Export last week (most common)
+
+Export the previous Monday–Sunday training week from Strava:
 
 ```bash
 strava-weekly-export --last-week
 ```
 
-### Export arbitrary date range
+Writes:
+
+- `./out/weekly_YYYY-MM-DD.json`
+
+Where `YYYY-MM-DD` is the Monday of that week.
+
+---
+
+### Export a specific date range
+
+Export any arbitrary date range:
 
 ```bash
 strava-weekly-export --from 2026-01-01 --to 2026-01-07
 ```
 
-### Upload planned workouts
+Notes:
+
+- Dates are inclusive  
+- Week boundaries are derived from local timezone  
+- Useful for:
+  - Partial weeks  
+  - Travel weeks  
+  - Backfills  
+  - Debugging  
+
+---
+
+### Ad-hoc exports (one-off or debugging)
+
+Export a single day or a small custom window for inspection or debugging:
+
+```bash
+strava-weekly-export --from 2026-01-21 --to 2026-01-21
+```
+
+This is useful for:
+
+- Inspecting a specific workout  
+- Debugging pace / HR parsing  
+- Testing schema changes  
+- Reviewing race days or key sessions  
+
+Notes:
+
+- Output format is identical to weekly exports  
+- Dates are inclusive  
+- No week alignment is enforced in this mode  
+
+---
+
+### Upload planned workouts to Intervals.icu (full week)
+
+Upload a planned week JSON file:
 
 ```bash
 strava-weekly-export intervals-push --planned ./planned_workouts.json
 ```
 
-### Validate only (no upload)
+This will:
+
+- Validate the JSON structure  
+- Upload all Run workouts  
+- Archive the plan to `./plans/plan_YYYY-MM-DD.json`  
+
+---
+
+### Validate a planned week (no upload)
+
+Strongly recommended before every upload:
 
 ```bash
 strava-weekly-export intervals-push --planned ./planned_workouts.json --validate-only
 ```
+
+This:
+
+- Parses and validates the full schema  
+- Renders workouts to the console  
+- Does **not** call the Intervals API  
+- Prevents malformed uploads and silent failures  
+
+---
+
+### Archive-only mode (no upload)
+
+Archive a plan without uploading it yet:
+
+```bash
+strava-weekly-export intervals-push --planned ./planned_workouts.json --archive-only
+```
+
+This:
+
+- Validates the file  
+- Writes it to `./plans/`  
+- Skips API calls  
+
+Useful for:
+
+- Versioning plans  
+- Reviewing later  
+- Comparing multiple drafts  
+
+---
+
+### Ad-hoc upload mode (partial or single-workout uploads)
+
+Upload one or more workouts without requiring a full weekly plan wrapper:
+
+```bash
+strava-weekly-export intervals-push --planned ./planned_workouts.json --adhoc
+```
+
+This mode is intended for:
+
+- Uploading a **single workout**  
+- Uploading only part of a week  
+- Testing new workout structures  
+- Making small corrections without regenerating a full plan  
+
+In this mode:
+
+- The input file may contain:
+  - A single workout object, or  
+  - A list of workout objects  
+- No `week_start` or metadata wrapper is required  
+- Workouts are uploaded exactly as provided  
+
+Important semantics:
+
+- **No archiving is performed in `--adhoc` mode**  
+- This mode is intentionally non-persistent  
+- It does not write to `./plans/`  
+
+Notes:
+
+- Validation still runs normally  
+- Duplicate date / identifier rules still apply in Intervals.icu  
+
+Tip: `--adhoc` is ideal for adding or fixing individual workouts without regenerating, archiving, or re-uploading an entire week.
+
+---
+
+### Re-upload or overwrite an existing planned week
+
+If a week has already been uploaded and you want to replace it:
+
+- Delete the planned workouts in Intervals.icu first, or  
+- Change the workout names / identifiers in the JSON  
+
+Then re-run:
+
+```bash
+strava-weekly-export intervals-push --planned ./planned_workouts.json
+```
+
+Intervals requires unique identifiers per workout date.
+
+---
+
+### Inspect available CLI options
+
+Show full help:
+
+```bash
+strava-weekly-export --help
+```
+
+Show help for the Intervals uploader:
+
+```bash
+strava-weekly-export intervals-push --help
+```
+
+---
+
+## Output directories
+
+By default the CLI writes to:
+
+- `./out/`  
+  → Weekly Strava exports  
+
+- `./plans/`  
+  → Archived planned weeks (full-week uploads only)  
+
+Note:
+
+- `--adhoc` uploads are **never archived** by design  
+
+---
+
+## Typical weekly usage
+
+A normal weekly cycle looks like:
+
+```bash
+# 1. Export last week
+strava-weekly-export --last-week
+
+# 2. Paste JSON into ChatGPT and generate next week
+
+# 3. Validate the new plan
+strava-weekly-export intervals-push --planned planned_workouts.json --validate-only
+
+# 4. Upload when happy
+strava-weekly-export intervals-push --planned planned_workouts.json
+```
+
+This loop is the primary intended usage pattern of the tool.
+
 
 ---
 
@@ -489,15 +695,3 @@ The goal is not to “let AI run your training”, but to:
 - Preserve training history  
 - Make planning faster and more consistent  
 - Enable intelligent iteration week by week  
-
----
-
-## Future ideas
-
-Common extensions:
-
-- Plan vs actual diff tooling  
-- Weekly load summaries (TSS / km / time deltas)  
-- Injury-aware progression rules  
-- Multi-sport planned uploads  
-- Long-term periodisation helpers  
