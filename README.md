@@ -13,6 +13,85 @@ It deliberately avoids “AI auto-planning in the background” — you remain i
 
 ---
 
+## Quickstart
+
+This section gets you from zero to a working export + upload as quickly as possible.
+
+### 1. Install
+
+Clone the repo and install dependencies:
+
+```bash
+git clone <your-repo-url>
+cd strava-weekly-export
+pip install -r requirements.txt
+```
+
+---
+
+### 2. Set environment variables
+
+#### Required
+
+These are mandatory for the tool to function.
+
+```bash
+export STRAVA_CLIENT_ID=...
+export STRAVA_CLIENT_SECRET=...
+export INTERVALS_API_KEY=...
+```
+
+Where:
+
+- `STRAVA_CLIENT_ID` / `STRAVA_CLIENT_SECRET`  
+  → From https://www.strava.com/settings/api  
+
+- `INTERVALS_API_KEY`  
+  → From Intervals.icu → Settings → API  
+
+#### Optional
+
+```bash
+export LOCAL_TIMEZONE=Australia/Melbourne
+```
+
+Notes:
+
+- Timezone is used to define week boundaries correctly  
+- If unset, the system timezone is used  
+
+---
+
+### 3. First run (Strava OAuth)
+
+On first run, the CLI will:
+
+- Open a browser window for Strava OAuth  
+- Ask you to authorise the app  
+- Persist tokens under `./secrets`  
+
+Sanity check:
+
+```bash
+strava-weekly-export --last-week
+```
+
+If this succeeds, authentication is complete.
+
+---
+
+### 4. Verify Intervals.icu connectivity
+
+Dry-run validation:
+
+```bash
+strava-weekly-export intervals-push --planned ./planned_workouts.json --validate-only
+```
+
+If validation runs without API errors, Intervals authentication is working.
+
+---
+
 ## What this does
 
 This repo provides two main capabilities:
@@ -337,8 +416,9 @@ Environment variables expected:
 - `STRAVA_CLIENT_ID`  
 - `STRAVA_CLIENT_SECRET`  
 - `INTERVALS_API_KEY`  
+- `LOCAL_TIMEZONE` (optional)  
 
-First run will guide you through Strava OAuth and persist tokens under `./secrets`.
+Tokens are persisted under `./secrets`.
 
 ---
 
