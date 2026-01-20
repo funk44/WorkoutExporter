@@ -22,9 +22,9 @@ This section gets you from zero to a working export + upload as quickly as possi
 Clone the repo and install dependencies:
 
 ```bash
-git clone <your-repo-url>
-cd strava-weekly-export
-pip install -r requirements.txt
+git clone https://github.com/funk44/WorkoutExporter.git
+cd WorkoutExporter
+pip install -e .
 ```
 
 ---
@@ -34,6 +34,10 @@ pip install -r requirements.txt
 #### Required
 
 These are mandatory for the tool to function.
+
+The commands depend on your operating system and shell.
+
+#### macOS / Linux (bash, zsh)
 
 ```bash
 export STRAVA_CLIENT_ID=...
