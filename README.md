@@ -1,228 +1,258 @@
-# Strava Weekly Export
+# Strava Weekly Export & Intervals.icu Planner
 
-- Export weekly Strava Run/Ride activities to JSON for training logs.
-- Upload planned Run workouts to Intervals.icu from a simple JSON format.
-- Archive uploaded plans for later comparison with executed weeks.
+A CLI tool for exporting weekly training data from Strava, using ChatGPT to generate structured training plans, and uploading those plans directly to Intervals.icu for execution and sync to Garmin (or other platforms).
 
-## Requirements
+This project is designed to support a **human-in-the-loop planning workflow**:
 
-- Python 3.11+
-- Internet access for Strava and Intervals.icu APIs
+- Export what you actually did last week  
+- Ask ChatGPT to plan next week using real data  
+- Upload the structured plan directly into Intervals.icu  
+- Execute, track, repeat  
 
-## Install
+It deliberately avoids “AI auto-planning in the background” — you remain in control of training decisions, load, and progression.
 
-Editable install:
+---
 
-```bash
-pip install -e .
-```
+## What this does
 
-Or with pipx:
+This repo provides two main capabilities:
 
-```bash
-pipx install -e .
-```
+### 1. Weekly Strava export (actual training)
 
-## Quick start
+- Fetches last week’s activities from Strava  
+- Normalises them into a clean weekly JSON summary  
+- Suitable for pasting directly into ChatGPT  
 
-1) Create a Strava API app: https://www.strava.com/settings/api  
-2) Set the callback URL to `http://localhost:8080/callback`  
-3) Set env vars:
+Used for:
+- Training review  
+- Fatigue / load awareness  
+- Data-driven planning  
 
-```bash
-export STRAVA_CLIENT_ID="your_client_id"
-export STRAVA_CLIENT_SECRET="your_client_secret"
-```
+### 2. Planned workout upload to Intervals.icu
 
-4) Run auth once (interactive):
+- Takes a JSON file describing next week’s planned runs  
+- Validates it against the Intervals.icu API schema  
+- Uploads it as planned workouts  
+- Archives the plan locally for comparison later  
 
-```bash
-strava-weekly-export --auth
-```
+Used for:
+- Structured run planning  
+- Garmin / Intervals calendar sync  
+- Long-term consistency  
 
-5) Export last week:
+Only **Run** workouts are uploaded by design. Other sports can be planned conceptually but are ignored by the uploader.
 
-```bash
-strava-weekly-export --last-week
-```
+---
 
-Output JSON is written to `./out/weekly_YYYY-MM-DD.json`.
+## Intended workflow (weekly loop with ChatGPT)
 
-## Commands
+This is the core design pattern of the project.
 
-Export weekly activities:
+### Step 1 — Export last week’s actual training
 
 ```bash
 strava-weekly-export --last-week
-strava-weekly-export --this-week
-strava-weekly-export --week-start 2024-07-01 --week-end 2024-07-07
-strava-weekly-export --last-week --intervals
 ```
 
-Options:
+This produces:
 
-- `--week-start` / `--week-end` (YYYY-MM-DD)
-- `--this-week` (Monday..Sunday in Australia/Melbourne)
-- `--last-week` (Monday..Sunday in Australia/Melbourne)
-- `--out` (output dir, default `./out`)
-- `--include-private` / `--no-include-private`
-- `--include-commute` / `--no-include-commute`
-- `--auth` (run interactive Strava OAuth)
-- `--dry-run` (print first mapped activity)
-- `--intervals` (export completed activities from Intervals.icu instead of Strava)
-- `--debug`
+- `./out/weekly_YYYY-MM-DD.json` (named by the Monday of that week)
 
-Upload planned workouts to Intervals.icu:
+This file contains:
+- Each activity (date, distance, duration, HR, pace, etc.)
+- Suitable for direct analysis or planning input  
+
+---
+
+### Step 2 — Paste export into ChatGPT
+
+Open ChatGPT and paste:
+
+- The exported weekly JSON  
+- An “athlete profile” prompt (template provided below)  
+
+Ask ChatGPT to:
+- Review last week  
+- Propose next week’s structure  
+- Output a **planned workouts JSON** matching this repo’s schema  
+
+---
+
+## One-time setup: committing your athlete profile to ChatGPT memory (recommended)
+
+For best results, it is strongly recommended that you **commit your long-term training profile to ChatGPT memory once**, so you do not need to repeat it every week.
+
+This includes things like:
+
+- Long-term goals (e.g. target races, time goals, seasons)
+- Injury history and risk areas
+- Preferred training structure and days
+- Weekly volume ranges
+- Strength / cross-training habits
+- Heat tolerance and environment constraints
+- Coaching philosophy (conservative vs aggressive, injury-averse, etc.)
+
+After providing this context once, explicitly ask ChatGPT:
+
+> “Please save this athlete profile to memory so we can reuse it for future planning.”
+
+From that point on:
+
+- Weekly planning prompts only need last week’s export  
+- You do **not** need to restate goals and constraints each time  
+- Plans become progressively more consistent and personalised  
+
+If you ever change goals, race targets, or constraints, simply update them and ask ChatGPT to overwrite the stored profile.
+
+This keeps weekly planning lightweight while preserving long-term continuity.
+
+---
+
+### Step 3 — Save ChatGPT’s output locally
+
+Save ChatGPT’s planned output as:
+
+- `./planned_workouts.json`
+
+This must follow the planned-workouts schema (see below).
+
+---
+
+### Step 4 — Validate locally (strongly recommended)
+
+Before uploading anything:
+
+```bash
+strava-weekly-export intervals-push --planned ./planned_workouts.json --validate-only
+```
+
+This:
+- Parses and validates the structure  
+- Prints rendered workouts  
+- Prevents API failures and broken uploads  
+
+---
+
+### Step 5 — Upload to Intervals.icu
 
 ```bash
 strava-weekly-export intervals-push --planned ./planned_workouts.json
 ```
 
-Options:
+On success:
+- Workouts appear in Intervals.icu  
+- They sync to Garmin automatically (if connected)  
+- The plan is archived locally to `./plans/plan_YYYY-MM-DD.json`  
 
-- `--planned` (path to planned workouts JSON)
-- `--from` / `--to` (YYYY-MM-DD date filters)
-- `--dry-run` (print rendered workouts)
-- `--validate-only` (validate and render, no upload)
-- `--adhoc` (disable plan archiving)
-- `--debug`
+---
 
-Notes:
+### Step 6 — Compare plan vs actual (optional but powerful)
 
-- Only Run workouts are uploaded to Intervals.icu; other sports are skipped.
-- Dry run and validate-only do not call the API.
+Next week you can compare:
 
-## Configuration
+- `./plans/plan_YYYY-MM-DD.json` (what you planned)  
+- `./out/weekly_YYYY-MM-DD.json` (what you actually did)  
 
-Environment variables:
+This enables:
+- Adherence tracking  
+- Load management  
+- Prompt refinement over time  
 
-| Name | Required | Description | Example |
-| --- | --- | --- | --- |
-| `STRAVA_CLIENT_ID` | Yes | Strava API app client ID | `12345` |
-| `STRAVA_CLIENT_SECRET` | Yes | Strava API app client secret | `abc123` |
-| `INTERVALS_API_KEY` | For `intervals-push` and `--intervals` export | Intervals.icu API key (HTTP Basic auth) | `your_api_key` |
-| `INTERVALS_ATHLETE_ID` | No | Intervals.icu athlete id (default `0`) | `0` |
-| `LOCAL_TIMEZONE` | No | Timezone for week boundaries (IANA tz, default `Australia/Melbourne`) | `Europe/London` |
-| `PLANS_DIR` | No | Plan archive directory (default `./plans`) | `./plans` |
+---
 
-### Intervals.icu: Get your Athlete ID and API Key
+## Boilerplate ChatGPT prompt (copy / paste)
 
-- Log into Intervals.icu and open Settings.
-- Find your Athlete ID (this is the numeric id for your athlete profile) and copy it.
-- Find your API key and copy it.
-- Set the environment variables used by this tool:
-  - `INTERVALS_API_KEY` (required for uploads and `--intervals` export)
-  - `INTERVALS_ATHLETE_ID` (optional, defaults to `0`)
+Use this when generating next week’s plan (or for your initial memory setup).  
+Replace the bracketed values with your own details.
 
-Example:
+```text
+You are helping me plan next week of training and produce a JSON file that can be uploaded to Intervals.icu using my CLI tool.
 
-```bash
-export INTERVALS_API_KEY="your_intervals_api_key"
-export INTERVALS_ATHLETE_ID="0"
-strava-weekly-export intervals-push --planned ./planned_workouts.json
+CONTEXT / ATHLETE PROFILE
+- Primary goal: [e.g., build half marathon fitness / prep for race on YYYY-MM-DD]
+- Current weekly volume: [e.g., 40–55 km running/week]
+- Long run status: [e.g., comfortable at 16 km; building gradually]
+- Injury / risk flags: [e.g., calf history; avoid spikes; no back-to-back hard days]
+- Heat / environment: [e.g., often running in 22–30°C mornings]
+- Available days & constraints:
+  - [e.g., run Tue/Wed/Fri/Sat/Sun]
+  - [e.g., travel Thu, no training]
+  - [e.g., gym access yes/no]
+- Preferences:
+  - Structured runs, not vague “easy / moderate”
+  - Keep easy days genuinely easy
+  - Include strides / light anaerobic touches if appropriate
+  - No hero workouts or sudden jumps
+- Intervals.icu settings:
+  - Run threshold pace: [e.g., 4:30/km]
+  - Pace % conventions (unless I say otherwise):
+    - Easy: 80–85%
+    - Recovery jog: 65–70%
+    - Strides: ~100–112%
+    - Tempo / threshold / intervals: choose sensible values and explain them
+
+INPUT DATA (LAST WEEK ACTUALS)
+I will paste a JSON export of last week’s completed training below. Use it to:
+- infer fatigue and load
+- keep progression conservative
+- avoid repeating hard days back-to-back
+- maintain sensible weekly structure
+
+TASK
+1) Propose a next-week plan (brief explanation first: structure + intent).
+2) Output ONLY the planned-workouts JSON matching this schema:
+   - A list of workout objects
+   - Each workout has: date, all_day OR time, sport, name, sections
+   - sections contain trainings
+   - trainings are either:
+     - steps: {duration, pace, description}
+     - or repeat blocks: {repeat:{count, trainings:[...]}}
+3) Only include Run workouts in the JSON.
+4) Make reasonable assumptions if needed and state them clearly.
+
+NOW HERE IS LAST WEEK’S EXPORT JSON:
+[paste weekly_YYYY-MM-DD.json here]
 ```
 
-## Files and storage
+---
 
-- Strava tokens: `./secrets/strava_tokens.json`
-- Gear cache: `./secrets/gear_cache.json`
-- Weekly exports: `./out/weekly_YYYY-MM-DD.json`
-- Plan archives: `./plans/plan_YYYY-MM-DD.json` (overwritten per week)
+## Planned workout JSON schema (Intervals.icu)
 
-Do not commit `./secrets`, `.env`, or generated output folders.
-
-## Export details
-
-- Activities exported: Runs and Rides only (Strava activity types `Run`/`VirtualRun` and `Ride`/`VirtualRide`).
-- Notes field: populated from the Strava activity description when available (Run/Ride/VirtualRun/VirtualRide); otherwise empty string.
-- Week boundaries are Monday..Sunday, computed in `LOCAL_TIMEZONE` (default `Australia/Melbourne`).
-- If `LOCAL_TIMEZONE` is invalid, the tool prints a warning and falls back to the default.
-- Exported file naming uses the local Monday date.
-- Intervals.icu export uses the same schema; shoes may be null and Intervals-only metrics appear under `extra`.
-
-Example timezone override:
-
-```bash
-export LOCAL_TIMEZONE="Europe/London"
-strava-weekly-export --last-week
-```
-
-## Planned workouts JSON (Intervals.icu)
-
-Top level is a list of workouts (or an object with a `workouts` list). Each workout must include:
-
-- `date` (YYYY-MM-DD)
-- `name` (non-empty string)
-- `sport` (string, only `Run` is uploaded)
-- Either `time` (HH:MM or HH:MM:SS) or `all_day: true`
-- Either `trainings` (list) or `sections` (non-empty list)
-
-Training step formats:
-
-- Simple step: `{ "duration": 90, "pace": 80, "description": "Easy jog" }`
-- Repeat block: `{ "repeat": { "count": 8, "trainings": [ ... ] } }`
-
-`duration` can be an integer seconds or a string with `m`, `km`, or `s` (for example `"20m"` or `"400m"`).  
-`pace` is an integer percentage from 1 to 150.
-
-If `all_day: true` is used, uploads use a fixed `start_date_local` of `12:00:00` on that date.
-
-Intervals.icu uploads use an `external_id` derived from workout date and name. Renaming a workout changes the `external_id` and can create a duplicate calendar entry. If you need to rename, delete the old event in Intervals.icu first.
-
-### How pace percentages work
-
-- Each training step `pace` is an integer percent (for example `80`, `95`, `112`).
-- These percentages are relative to your Threshold pace in Intervals.icu.
-- Set it in Intervals.icu: Settings → Sport Settings → Run → Threshold pace.
-
-Example (threshold pace = 4:30/km):
-
-- 80% ≈ easy pace
-- 100% ≈ threshold pace
-- 112% ≈ faster-than-threshold strides
-
-Intervals.icu uses these settings to translate your plan into a structured workout that Garmin can display step-by-step.
-
-Common mistakes:
-
-- Using the wrong Athlete ID
-- Leaving Threshold pace unset
-- Pace percentages looking wrong because Threshold pace is outdated
-
-Minimal valid example:
+Planned uploads must follow this structure exactly:
 
 ```json
 [
   {
-    "date": "2024-07-01",
-    "time": "06:00",
+    "date": "2026-01-21",
+    "time": "06:30",
     "sport": "Run",
-    "name": "Strides",
+    "name": "Progression Run",
     "sections": [
       {
-        "name": "Warmup",
-        "trainings": [
-          { "duration": "20m", "pace": 80, "description": "" }
-        ]
-      },
-      {
-        "name": "Main set",
+        "name": "Main Set",
         "trainings": [
           {
+            "duration": "10m",
+            "pace": 0.85,
+            "description": "Easy warm-up"
+          },
+          {
             "repeat": {
-              "count": 8,
+              "count": 4,
               "trainings": [
-                { "duration": "20s", "pace": 112, "description": "Stride fast" },
-                { "duration": 90, "pace": 68, "description": "Easy jog" }
+                {
+                  "duration": "3m",
+                  "pace": 1.00,
+                  "description": "Threshold"
+                },
+                {
+                  "duration": "2m",
+                  "pace": 0.70,
+                  "description": "Recovery jog"
+                }
               ]
             }
           }
-        ]
-      },
-      {
-        "name": "Cooldown",
-        "trainings": [
-          { "duration": "10m", "pace": 80, "description": "" }
         ]
       }
     ]
@@ -230,17 +260,160 @@ Minimal valid example:
 ]
 ```
 
-## Troubleshooting
+### Notes
 
-- Missing env vars: ensure `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET` are set.
-- Auth failures: re-run `strava-weekly-export --auth` and confirm the callback URL.
-- Rate limiting: the client retries automatically, but large weeks may take longer.
-- Week boundary confusion: exports are Monday..Sunday in `Australia/Melbourne`.
-- Intervals.icu upload fails: confirm `INTERVALS_API_KEY` and `INTERVALS_ATHLETE_ID`.
-- Garmin sync: ensure Intervals.icu <-> Garmin integration is enabled in Intervals.icu.
+- `pace` is a fraction of Intervals.icu threshold pace (e.g., `0.85 = 85%`)  
+- Durations use Intervals format: `"5m"`, `"30s"`, `"1h"`  
+- Only workouts with `"sport": "Run"` are uploaded  
+- Sections and repeats are fully supported  
 
-## Security notes
+---
 
-- Never commit tokens or API keys.
-- Keep `./secrets` and `.env` local only.
-- Treat archived plans and exports as private training data.
+## CLI overview
+
+### Export last week
+
+```bash
+strava-weekly-export --last-week
+```
+
+### Export arbitrary date range
+
+```bash
+strava-weekly-export --from 2026-01-01 --to 2026-01-07
+```
+
+### Upload planned workouts
+
+```bash
+strava-weekly-export intervals-push --planned ./planned_workouts.json
+```
+
+### Validate only (no upload)
+
+```bash
+strava-weekly-export intervals-push --planned ./planned_workouts.json --validate-only
+```
+
+---
+
+## Repository layout
+
+High-level structure:
+
+- `cli.py`  
+  Main entrypoint. Parses arguments, orchestrates exports and uploads.
+
+- `auth.py`  
+  Strava and Intervals token handling. Tokens are persisted under `./secrets`.
+
+- `strava_client.py`  
+  Strava API access: list activities, fetch details, map to export schema.
+
+- `export_week.py`  
+  Weekly aggregation and JSON rendering.
+
+- `intervals_client.py`  
+  Intervals.icu API client and upload logic.
+
+- `workout_render.py`  
+  Validation and rendering helpers for planned workouts.
+
+- `plan_archive.py`  
+  Archives uploaded plans to `./plans`.
+
+- `./out`  
+  Weekly Strava exports.
+
+- `./plans`  
+  Archived planned weeks.
+
+---
+
+## Authentication & setup
+
+Environment variables expected:
+
+- `STRAVA_CLIENT_ID`  
+- `STRAVA_CLIENT_SECRET`  
+- `INTERVALS_API_KEY`  
+
+First run will guide you through Strava OAuth and persist tokens under `./secrets`.
+
+---
+
+## Safety rails & important gotchas
+
+### Always validate before uploading
+
+Use:
+
+```bash
+--validate-only
+```
+
+This prevents:
+- Broken JSON  
+- Malformed repeats  
+- API rejections  
+
+---
+
+### Duplicate external IDs
+
+Intervals.icu requires unique workout identifiers.  
+If you re-upload a modified plan for the same dates:
+
+- Either delete the old planned workouts in Intervals first, or  
+- Change the workout names / IDs  
+
+Otherwise Intervals may reject or silently ignore updates.
+
+---
+
+### Only Run workouts are uploaded
+
+By design:
+- Cycling, strength, yoga, etc. are ignored  
+- You may describe them in the explanation, but do not include them in the JSON  
+
+---
+
+### This tool does not “auto-progress” your training
+
+Progression logic is intentionally external:
+
+- ChatGPT proposes structure  
+- You review and adjust  
+- You remain accountable for load, injury risk, and realism  
+
+This is a planning assistant, not a coaching black box.
+
+---
+
+## Philosophy
+
+This project is built around a few principles:
+
+- **Data-driven planning beats vibes**  
+- **Human judgement remains central**  
+- **Transparency over automation**  
+- **Repeatability over cleverness**  
+
+The goal is not to “let AI run your training”, but to:
+
+- Preserve training history  
+- Make planning faster and more consistent  
+- Enable intelligent iteration week by week  
+
+---
+
+## Future ideas
+
+Common extensions:
+
+- Plan vs actual diff tooling  
+- Weekly load summaries (TSS / km / time deltas)  
+- Injury-aware progression rules  
+- Multi-sport planned uploads  
+- Long-term periodisation helpers  
