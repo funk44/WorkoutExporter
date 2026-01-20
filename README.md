@@ -53,8 +53,6 @@ Where:
 - `INTERVALS_API_KEY`  
   → From Intervals.icu → Settings → API  
 
-#### Intervals.icu threshold pace
-  → From Intervals.icu → Settings → Sport Settings → Run → Threshold Pace 
 
 #### Optional
 
@@ -69,7 +67,11 @@ Notes:
 
 ---
 
-### 3. First run (Strava OAuth)
+### 3. Set Intervals.icu threshold pace
+
+  → From Intervals.icu → Settings → Sport Settings → Run → Threshold Pace 
+
+### 4. First run (Strava OAuth)
 
 On first run, the CLI will:
 
@@ -87,7 +89,7 @@ If this succeeds, authentication is complete.
 
 ---
 
-### 4. Verify Intervals.icu connectivity
+### 5. Verify Intervals.icu connectivity
 
 Dry-run validation:
 
@@ -103,7 +105,7 @@ If validation runs without API errors, Intervals authentication is working.
 
 This repo provides two main capabilities:
 
-### 1. Weekly Strava export (actual training)
+### 1. Weekly Strava (or intervals.icu) export (actual training)
 
 - Fetches last week’s activities from Strava  
 - Normalises them into a clean weekly JSON summary  
@@ -359,7 +361,7 @@ Planned uploads must follow this structure exactly:
 
 The CLI provides two primary modes:
 
-- **Weekly Strava export** (actual training history)  
+- **Weekly Strava (or intervals.icu) export** (actual training history)  
 - **Intervals.icu planned workout upload** (future training plans)  
 
 It also includes helpers for validation, archiving, ad-hoc uploads, and flexible date ranges.
