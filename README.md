@@ -71,6 +71,8 @@ Notes:
 
   → From Intervals.icu → Settings → Sport Settings → Run → Threshold Pace 
 
+  ---
+
 ### 4. First run (Strava OAuth)
 
 On first run, the CLI will:
