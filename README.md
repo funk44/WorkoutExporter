@@ -1,4 +1,4 @@
-# Strava Weekly Export & Intervals.icu Planner
+# Strava Weekly Export & AI Powered Intervals.icu Planner
 
 A CLI tool for exporting weekly training data from Strava, using ChatGPT to generate structured training plans, and uploading those plans directly to Intervals.icu for execution and sync to Garmin (or other platforms).
 
@@ -52,6 +52,9 @@ Where:
 
 - `INTERVALS_API_KEY`  
   → From Intervals.icu → Settings → API  
+
+#### Intervals.icu threshold pace
+  → From Intervals.icu → Settings → Sport Settings → Run → Threshold Pace 
 
 #### Optional
 
