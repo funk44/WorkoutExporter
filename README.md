@@ -57,13 +57,15 @@ Where:
 #### Optional
 
 ```bash
+export INTERVALS_ATHLETE_ID=12345
 export LOCAL_TIMEZONE=Australia/Melbourne
 ```
 
 Notes:
 
+- `INTERVALS_ATHLETE_ID` is optional and must be an integer when set  
 - Timezone is used to define week boundaries correctly  
-- If unset, the system timezone is used  
+- If unset or invalid, defaults to `Australia/Melbourne`  
 
 ---
 
@@ -75,11 +77,17 @@ Notes:
 
 ### 4. First run (Strava OAuth)
 
-On first run, the CLI will:
+Run the interactive auth flow once:
+
+```bash
+strava-weekly-export --auth
+```
+
+The CLI will:
 
 - Open a browser window for Strava OAuth  
 - Ask you to authorise the app  
-- Persist tokens under `./secrets`  
+- Persist tokens under `./secrets/strava_tokens.json`  
 
 Sanity check:
 
@@ -310,6 +318,8 @@ NOW HERE IS LAST WEEK’S EXPORT JSON:
 
 Planned uploads must follow this structure exactly:
 
+Input can be either a top-level list of workouts, or a JSON object with a `workouts` list.
+
 ```json
 [
   {
@@ -370,6 +380,26 @@ It also includes helpers for validation, archiving, ad-hoc uploads, and flexible
 
 ---
 
+### Export mode flags (default command)
+
+- `--week-start` / `--week-end`  
+- `--this-week`  
+- `--last-week`  
+- `--this-week-to-date`  
+- `--out`, `--include-private`, `--include-commute`, `--debug`, `--dry-run`  
+- `--auth` (Strava OAuth)  
+- `--intervals` (export completed activities from Intervals.icu instead of Strava)  
+
+### Intervals upload flags (`intervals-push` subcommand)
+
+- `--planned` (required)  
+- `--from` / `--to` (planned-workout date filters)  
+- `--validate-only`, `--dry-run`  
+- `--adhoc` (disable plan archiving)  
+- `--debug`  
+
+---
+
 ### Export last week (most common)
 
 Export the previous Monday–Sunday training week from Strava:
@@ -386,12 +416,27 @@ Where `YYYY-MM-DD` is the Monday of that week.
 
 ---
 
+### Export current week to date
+
+Export Monday 00:00 local time through right now:
+
+```bash
+strava-weekly-export --this-week-to-date
+```
+
+Notes:
+
+- Week start is Monday in `LOCAL_TIMEZONE`  
+- The export end is the current time (not end of week)  
+
+---
+
 ### Export a specific date range
 
 Export any arbitrary date range:
 
 ```bash
-strava-weekly-export --from 2026-01-01 --to 2026-01-07
+strava-weekly-export --week-start 2026-01-01 --week-end 2026-01-07
 ```
 
 Notes:
@@ -411,7 +456,7 @@ Notes:
 Export a single day or a small custom window for inspection or debugging:
 
 ```bash
-strava-weekly-export --from 2026-01-21 --to 2026-01-21
+strava-weekly-export --week-start 2026-01-21 --week-end 2026-01-21
 ```
 
 This is useful for:
@@ -462,31 +507,24 @@ This:
 
 ---
 
-### Archive-only mode (no upload)
+### Filter planned uploads by date
 
-Archive a plan without uploading it yet:
+Upload only a slice of the planned workouts:
 
 ```bash
-strava-weekly-export intervals-push --planned ./planned_workouts.json --archive-only
+strava-weekly-export intervals-push --planned ./planned_workouts.json --from 2026-01-01 --to 2026-01-07
 ```
 
-This:
+Notes:
 
-- Validates the file  
-- Writes it to `./plans/`  
-- Skips API calls  
-
-Useful for:
-
-- Versioning plans  
-- Reviewing later  
-- Comparing multiple drafts  
+- Dates are inclusive  
+- Filters are applied before validation and upload  
 
 ---
 
 ### Ad-hoc upload mode (partial or single-workout uploads)
 
-Upload one or more workouts without requiring a full weekly plan wrapper:
+Upload one or more workouts without archiving:
 
 ```bash
 strava-weekly-export intervals-push --planned ./planned_workouts.json --adhoc
@@ -501,10 +539,7 @@ This mode is intended for:
 
 In this mode:
 
-- The input file may contain:
-  - A single workout object, or  
-  - A list of workout objects  
-- No `week_start` or metadata wrapper is required  
+- The input file must be a list of workout objects (or `{ "workouts": [...] }`)  
 - Workouts are uploaded exactly as provided  
 
 Important semantics:
@@ -563,7 +598,7 @@ By default the CLI writes to:
   → Weekly Strava exports  
 
 - `./plans/`  
-  → Archived planned weeks (full-week uploads only)  
+  → Archived planned weeks (full-week uploads only; override with `PLANS_DIR`)  
 
 Note:
 
@@ -601,7 +636,7 @@ High-level structure:
   Main entrypoint. Parses arguments, orchestrates exports and uploads.
 
 - `auth.py`  
-  Strava and Intervals token handling. Tokens are persisted under `./secrets`.
+  Strava OAuth flow + token handling. Tokens are persisted under `./secrets`.
 
 - `strava_client.py`  
   Strava API access: list activities, fetch details, map to export schema.
@@ -633,9 +668,26 @@ Environment variables expected:
 - `STRAVA_CLIENT_ID`  
 - `STRAVA_CLIENT_SECRET`  
 - `INTERVALS_API_KEY`  
+- `INTERVALS_ATHLETE_ID` (optional)  
 - `LOCAL_TIMEZONE` (optional)  
 
-Tokens are persisted under `./secrets`.
+Strava OAuth:
+
+- Run `strava-weekly-export --auth` to authorize  
+- Opens a browser to the Strava OAuth page (scope: `activity:read_all`)  
+- Strava redirects to `http://localhost:8080/callback`  
+- A local HTTP server captures the code; if that fails, paste the code from the URL  
+- Tokens are saved to `./secrets/strava_tokens.json` (relative to your current working directory)  
+- Access tokens refresh automatically; if no refresh token is found, you'll see "Run auth first."  
+
+---
+
+## Troubleshooting auth
+
+- Missing env vars: ensure `STRAVA_CLIENT_ID` and `STRAVA_CLIENT_SECRET` are set  
+- Redirect URI mismatch: update your Strava app settings to include `http://localhost:8080/callback`  
+- Port 8080 in use: stop the conflicting service or copy/paste the code from the browser URL  
+- Tokens not found: re-run `strava-weekly-export --auth` and verify `./secrets/strava_tokens.json` exists  
 
 ---
 
@@ -702,3 +754,5 @@ The goal is not to “let AI run your training”, but to:
 - Preserve training history  
 - Make planning faster and more consistent  
 - Enable intelligent iteration week by week  
+
+

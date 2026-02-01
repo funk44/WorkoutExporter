@@ -41,18 +41,36 @@ def _compute_week_range(mode: str) -> Tuple[str, str]:
     return start.isoformat(), end.isoformat()
 
 
-def _validate_week_args(args: argparse.Namespace) -> Tuple[str, str]:
-    if args.this_week and args.last_week:
-        raise RuntimeError("Use only one of --this-week or --last-week.")
+def _compute_week_to_date_range() -> Tuple[str, str]:
+    today = datetime.now(tz=LOCAL_TZ).date()
+    start = today - timedelta(days=today.weekday())
+    return start.isoformat(), today.isoformat()
+
+
+def _validate_week_args(args: argparse.Namespace) -> Tuple[str, str, bool]:
+    mode_flags = [args.this_week, args.last_week, args.this_week_to_date]
+    if sum(bool(flag) for flag in mode_flags) > 1:
+        raise RuntimeError("Use only one of --this-week, --last-week, or --this-week-to-date.")
+    if any(mode_flags) and (args.week_start or args.week_end):
+        raise RuntimeError(
+            "Use either --week-start/--week-end or one of --this-week/--last-week/--this-week-to-date."
+        )
     if args.this_week:
-        return _compute_week_range("this")
+        start, end = _compute_week_range("this")
+        return start, end, False
     if args.last_week:
-        return _compute_week_range("last")
+        start, end = _compute_week_range("last")
+        return start, end, False
+    if args.this_week_to_date:
+        start, end = _compute_week_to_date_range()
+        return start, end, True
     if not args.week_start or not args.week_end:
-        raise RuntimeError("Provide --week-start and --week-end, or use --this-week/--last-week.")
+        raise RuntimeError(
+            "Provide --week-start and --week-end, or use --this-week/--last-week/--this-week-to-date."
+        )
     start = _parse_date(args.week_start).isoformat()
     end = _parse_date(args.week_end).isoformat()
-    return start, end
+    return start, end, False
 
 
 def _summary(payload: Dict[str, Any], skipped: Dict[str, int]) -> str:
@@ -71,6 +89,11 @@ def _build_export_parser() -> argparse.ArgumentParser:
     parser.add_argument("--week-start", help="YYYY-MM-DD")
     parser.add_argument("--week-end", help="YYYY-MM-DD")
     parser.add_argument("--this-week", action="store_true", help="Use Monday..Sunday this week")
+    parser.add_argument(
+        "--this-week-to-date",
+        action="store_true",
+        help="Use Monday..today (current week to date)",
+    )
     parser.add_argument("--last-week", action="store_true", help="Use Monday..Sunday last week")
     parser.add_argument("--out", default="./out", help="Output directory")
     parser.add_argument(
@@ -265,7 +288,7 @@ def _export_command(args: argparse.Namespace) -> int:
         if args.intervals:
             if args.auth:
                 raise RuntimeError("--auth is only valid for Strava exports.")
-            week_start, week_end = _validate_week_args(args)
+            week_start, week_end, _ = _validate_week_args(args)
             intervals_env = load_intervals_env()
             client = IntervalsClient(
                 intervals_env.api_key, athlete_id=intervals_env.athlete_id, debug=args.debug
@@ -283,10 +306,12 @@ def _export_command(args: argparse.Namespace) -> int:
                 run_interactive_auth(env)
                 print("Auth completed and tokens saved.")
                 return 0
-            week_start, week_end = _validate_week_args(args)
+            week_start, week_end, end_is_now = _validate_week_args(args)
             start_date = _parse_date(week_start)
             end_date = _parse_date(week_end)
             after_epoch, before_epoch = _week_bounds_from_dates(start_date, end_date)
+            if end_is_now:
+                before_epoch = int(datetime.now(tz=LOCAL_TZ).timestamp())
 
             tokens = ensure_valid_tokens(env, load_tokens())
             access_token = tokens.get("access_token")
